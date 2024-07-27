@@ -153,6 +153,16 @@ void Acts::TGeoLayerBuilder::buildLayers(const GeometryContext& gctx,
 
       pl.envelope[Acts::binR] = {lCfg.envelope.first, lCfg.envelope.second};
       pl.envelope[Acts::binZ] = {lCfg.envelope.second, lCfg.envelope.second};
+      // @todo hacks added by X.Cong to help splitting of lineSurfaces
+      if (lSurfaces.size() > 0) {
+        if (lSurfaces[0]->type() == Acts::Surface::Straw) {
+          ACTS_WARNING("- use zero envelope thickness for straw layer -");
+          pl.envelope[Acts::binR] = {
+              0.0, 0.0};  // default is 1 mm and the sum of the two number is
+                          // added to the range/thickness of a straw layer.
+        }
+      }
+      /////////////////////
       if (nb0 >= 0 && nb1 >= 0) {
         layers.push_back(
             m_cfg.layerCreator->cylinderLayer(gctx, lSurfaces, nb0, nb1, pl));

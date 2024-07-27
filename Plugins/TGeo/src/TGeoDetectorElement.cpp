@@ -13,6 +13,7 @@
 #include "Acts/Surfaces/CylinderSurface.hpp"
 #include "Acts/Surfaces/DiscSurface.hpp"
 #include "Acts/Surfaces/PlaneSurface.hpp"
+#include "Acts/Surfaces/StrawSurface.hpp"
 #include "Acts/Surfaces/Surface.hpp"
 
 #include <tuple>
@@ -45,14 +46,31 @@ Acts::TGeoDetectorElement::TGeoDetectorElement(
   auto sensor = m_detElement->GetVolume();
   auto tgShape = sensor->GetShape();
 
-  auto [cBounds, cTransform, cThickness] =
-      TGeoSurfaceConverter::cylinderComponents(*tgShape, rotation, translation,
-                                               axes, scalor);
-  if (cBounds != nullptr) {
-    m_transform = cTransform;
-    m_bounds = cBounds;
-    m_thickness = cThickness;
-    m_surface = Surface::makeShared<CylinderSurface>(cBounds, *this);
+  auto [lBounds, lTransform, lThickness] =
+      // TGeoSurfaceConverter::lineComponents(*tgShape, rotation, translation,
+      TGeoSurfaceConverter::lineComponents(tGeoNode, rotation, translation,
+                                           axes, scalor);
+  if (lBounds != nullptr) {
+    m_transform = lTransform;
+    m_bounds = lBounds;
+    m_thickness = lThickness;
+    m_surface = Surface::makeShared<StrawSurface>(lBounds, *this);
+    std::cout << "Creating straw surface with line radius = "
+              << std::hypot(m_surface->center(GeometryContext()).x(),
+                            m_surface->center(GeometryContext()).y())
+              << std::endl;
+  }
+
+  if (m_surface == nullptr) {
+    auto [cBounds, cTransform, cThickness] =
+        TGeoSurfaceConverter::cylinderComponents(*tgShape, rotation,
+                                                 translation, axes, scalor);
+    if (cBounds != nullptr) {
+      m_transform = cTransform;
+      m_bounds = cBounds;
+      m_thickness = cThickness;
+      m_surface = Surface::makeShared<CylinderSurface>(cBounds, *this);
+    }
   }
 
   // Check next if you do not have a surface
