@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+import os
+#from common import getOpenDataDetectorDirectory
+#from acts.examples.odd import getOpenDataDetector
+from acts.examples import GenericDetector, AlignedDetector, TGeoDetector
+from pathlib import Path
+from acts.examples import (
+    GenericDetector,
+    AlignedDetector,
+    WhiteBoard,
+    AlgorithmContext,
+    ProcessCode,
+    CsvTrackingGeometryWriter,
+    ObjTrackingGeometryWriter,
+    JsonSurfacesWriter,
+    JsonMaterialWriter,
+    JsonFormat,
+)
+
+import acts
+import json
+
+from acts import MaterialMapJsonConverter
+
+
+def runGeometry(
+    trackingGeometry,
+    decorators,
+    outputDir,
+    events=1,
+    outputObj=True,
+    outputCsv=True,
+    outputJson=True,
+    outputRoot=True,
+):
+    for ievt in range(events):
+        eventStore = WhiteBoard(name=f"EventStore#{ievt}", level=acts.logging.INFO)
+        ialg = 0
+
+        context = AlgorithmContext(ialg, ievt, eventStore)
+
+        for cdr in decorators:
+            r = cdr.decorate(context)
+            if r != ProcessCode.SUCCESS:
+                raise RuntimeError("Failed to decorate event context")
+
+        if outputCsv:
+            # if not os.path.isdir(outputDir + "/csv"):
+            #    os.makedirs(outputDir + "/csv")
+            writer = CsvTrackingGeometryWriter(
+                level=acts.logging.INFO,
+                trackingGeometry=trackingGeometry,
+                outputDir=os.path.join(outputDir, "csv"),
+                writePerEvent=True,
+            )
+            writer.write(context)
+
+        if outputObj:
+            writer = ObjTrackingGeometryWriter(
+                level=acts.logging.INFO, outputDir=os.path.join(outputDir, "obj")
+            )
+            writer.write(context, trackingGeometry)
+
+        if outputJson:
+            # if not os.path.isdir(outputDir + "/json"):
+            #    os.makedirs(outputDir + "/json")
+            writer = JsonSurfacesWriter(
+                level=acts.logging.INFO,
+                trackingGeometry=trackingGeometry,
+                outputDir=os.path.join(outputDir, "json"),
+                writePerEvent=True,
+                writeSensitive=True,
+            )
+            writer.write(context)
+
+            jmConverterCfg = MaterialMapJsonConverter.Config(
+                processSensitives=True,
+                processApproaches=True,
+                processRepresenting=True,
+                processBoundaries=True,
+                processVolumes=True,
+                processNonMaterial=True,
+                context=context.geoContext,
+            )
+
+            jmw = JsonMaterialWriter(
+                level=acts.logging.VERBOSE,
+                converterCfg=jmConverterCfg,
+                fileName=os.path.join(outputDir, "geometry-map"),
+                writeFormat=JsonFormat.Json,
+            )
+
+            jmw.write(trackingGeometry)
+
+
+if "__main__" == __name__:
+    #detector, trackingGeometry, decorators = AlignedDetector.create()
+    # detector, trackingGeometry, decorators = GenericDetector.create()
+    #detector, trackingGeometry, decorators = getOpenDataDetector(
+    #   getOpenDataDetectorDirectory()
+    #)
+
+    matDeco = None
+    #matDeco = acts.IMaterialDecorator.fromFile("geometry-map.json")
+
+    logLevel=acts.logging.VERBOSE
+    customLogLevel = acts.examples.defaultLogging(logLevel=logLevel)
+
+    jsonFile=Path.cwd() / "tgeo_ODD_v01_config.json"
+    tgeo_fileName=Path.cwd() / "DD4hep_ODD_DC.root"
+    (
+        detector,
+        trackingGeometry,
+        decorators,
+    ) = TGeoDetector.create(
+            jsonFile=str(jsonFile),
+            fileName=str(tgeo_fileName),
+            surfaceLogLevel=customLogLevel(),
+            layerLogLevel=customLogLevel(),
+            volumeLogLevel=logLevel,
+            mdecorator=matDeco,
+    )
+
+    runGeometry(trackingGeometry, decorators, outputDir=os.getcwd())
+
+    # Uncomment if you want to create the geometry id mapping for DD4hep
+    # dd4hepIdGeoIdMap = acts.examples.dd4hep.createDD4hepIdGeoIdMap(trackingGeometry)
+    # dd4hepIdGeoIdValueMap = {}
+    # for key, value in dd4hepIdGeoIdMap.items():
+    #     dd4hepIdGeoIdValueMap[key] = value.value()
+
+    # with open('odd-dd4hep-geoid-mapping.json', 'w') as outfile:
+    #    json.dump(dd4hepIdGeoIdValueMap, outfile)
